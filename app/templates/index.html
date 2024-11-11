@@ -1,0 +1,508 @@
+{% extends "base.html" %}
+
+{% block title %}메인 페이지{% endblock %}
+
+{% block content %}
+<div class="container py-4">
+    <div class="row g-4">
+        <!-- 왼쪽: 비디오 스트리밍 -->
+        <div class="col-md-6">
+            <div class="card shadow-sm">
+                <div class="card-body">
+                    <h3 class="card-title mb-3">실시간 모니터링</h3>
+                    <button id="toggleCamera" class="btn btn-primary w-100 mb-3">카메라 켜기</button>
+                    <div class="video-container" id="videoContainer" style="display: none;">
+                        <img src="{{ url_for('video.video_feed') }}" class="video-stream">
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- 오른쪽: 상태 모니터링 -->
+        <div class="col-md-6">
+            <div class="card shadow-sm">
+                <div class="card-body">
+                    <h3 class="card-title mb-3">상태 모니터링</h3>
+                    <div class="status-bars">
+                        <div class="status-item">
+                            <label class="form-label">행복도</label>
+                            <div class="progress">
+                                <div id="happinessBar" class="progress-bar bg-success" role="progressbar"></div>
+                            </div>
+                        </div>
+                        <div class="status-item">
+                            <label class="form-label">건강</label>
+                            <div class="progress">
+                                <div id="healthBar" class="progress-bar bg-info" role="progressbar"></div>
+                            </div>
+                        </div>
+                        <div class="status-item">
+                            <label class="form-label">포만감</label>
+                            <div class="progress">
+                                <div id="satietyBar" class="progress-bar bg-warning" role="progressbar"></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 채팅 섹션 -->
+    <div class="row">
+        <div class="col-md-8 offset-md-2">
+            <div class="chat-container" id="chatContainer">
+                {% if chat_history %}
+                    {% for chat in chat_history %}
+                    <div class="message user-message">
+                        <strong>나:</strong> {{ chat.user_message }}
+                    </div>
+                    <div class="message ai-message">
+                        <strong>AI:</strong> {{ chat.ai_response }}
+                    </div>
+                    {% endfor %}
+                {% endif %}
+            </div>
+            <div class="chat-input-container">
+                <form id="chatForm" class="chat-form">
+                    <div class="input-group">
+                        <input type="text" id="messageInput" class="form-control" placeholder="메시지를 입력하세요...">
+                        <button type="submit" class="btn btn-primary">전송</button>
+                    </div>
+                </form>
+            </div>
+            <div class="voice-controls mt-3">
+                <button id="startVoiceBtn" class="btn btn-primary">음성 대화 시작</button>
+                <div id="voiceStatus" class="mt-2"></div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+:root {
+    --system-gray: #8E8E93;
+    --system-blue: #007AFF;
+    --system-red: #FF3B30;
+    --system-background: #F2F2F7;
+    --card-background: #FFFFFF;
+    --text-primary: #000000;
+    --text-secondary: #6C6C70;
+    --border-color: rgba(60, 60, 67, 0.1);
+}
+
+body {
+    background-color: var(--system-background);
+    color: var(--text-primary);
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+    -webkit-font-smoothing: antialiased;
+}
+
+.card {
+    background: var(--card-background);
+    border-radius: 12px;
+    border: 1px solid var(--border-color);
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+    transition: box-shadow 0.2s ease;
+    margin-bottom: 16px;
+}
+
+.card-title {
+    color: var(--text-primary);
+    font-size: 20px;
+    font-weight: 600;
+    margin-bottom: 16px;
+    letter-spacing: -0.5px;
+}
+
+.video-container {
+    width: 100%;
+    height: 0;
+    padding-bottom: 75%; /* 4:3 비율 유지 */
+    position: relative;
+    border-radius: 8px;
+    overflow: hidden;
+    background-color: #000000;
+}
+
+.video-stream {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    object-fit: cover; /* 비디오를 컨테이너에 맞게 조절 */
+    display: block;
+}
+
+.btn {
+    border-radius: 8px;
+    font-size: 17px;
+    font-weight: 500;
+    padding: 12px 24px;
+    transition: all 0.2s ease;
+    letter-spacing: -0.4px;
+}
+
+.btn-primary {
+    background-color: var(--system-blue);
+    border: none;
+}
+
+.btn-primary:hover {
+    background-color: #0071EB;
+    transform: none;
+}
+
+.btn-danger {
+    background-color: var(--system-red);
+    border: none;
+}
+
+.btn-danger:hover {
+    background-color: #FF2D55;
+}
+
+.status-item {
+    margin-bottom: 24px;
+}
+
+.form-label {
+    font-size: 15px;
+    font-weight: 500;
+    color: var(--text-secondary);
+    margin-bottom: 8px;
+    display: inline-block;
+}
+
+.progress {
+    height: 8px;
+    border-radius: 4px;
+    background-color: var(--system-background);
+    box-shadow: none;
+}
+
+.progress-bar {
+    border-radius: 4px;
+    font-size: 0;
+    line-height: 0;
+}
+
+.chat-container {
+    height: 400px;
+    border-radius: 12px;
+    padding: 16px;
+    background-color: var(--system-background);
+    border: 1px solid var(--border-color);
+}
+
+.message {
+    margin-bottom: 12px;
+    padding: 12px 16px;
+    border-radius: 18px;
+    max-width: 70%;
+    font-size: 15px;
+    line-height: 1.4;
+}
+
+.user-message {
+    background-color: var(--system-blue);
+    color: white;
+    margin-left: auto;
+}
+
+.ai-message {
+    background-color: var(--system-gray);
+    color: white;
+    margin-right: auto;
+}
+
+#happinessBar {
+    background-color: var(--system-blue);
+}
+
+#healthBar {
+    background-color: #30B0C7;
+}
+
+#satietyBar {
+    background-color: #32D74B;
+}
+
+.chat-container::-webkit-scrollbar {
+    width: 8px;
+}
+
+.chat-container::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+.chat-container::-webkit-scrollbar-thumb {
+    background: var(--system-gray);
+    border-radius: 4px;
+}
+
+@media (max-width: 768px) {
+    .card-title {
+        font-size: 18px;
+    }
+    
+    .btn {
+        font-size: 16px;
+        padding: 10px 20px;
+    }
+    
+    .message {
+        max-width: 85%;
+        font-size: 14px;
+    }
+    
+    .video-container {
+        padding-bottom: 75%; /* 모바일에서도 4:3 비율 유지 */
+    }
+}
+
+.voice-controls {
+    margin-top: 16px;
+    text-align: center;
+}
+
+#toggleCamera {
+    width: 100%;
+    margin-bottom: 16px;
+}
+
+.card-body {
+    padding: 16px;
+}
+
+.chat-input-container {
+    margin-top: 16px;
+}
+
+.chat-form {
+    display: flex;
+}
+
+.input-group {
+    width: 100%;
+}
+
+.input-group .form-control {
+    border-radius: 8px 0 0 8px;
+    border: 1px solid var(--border-color);
+    padding: 12px;
+    font-size: 15px;
+    height: auto;
+}
+
+.input-group .btn {
+    border-radius: 0 8px 8px 0;
+    padding: 12px 24px;
+}
+</style>
+
+<script>
+// 상태 업데이트 함수
+function updateStatus() {
+    fetch('/get_status')
+        .then(response => response.json())
+        .then(data => {
+            document.getElementById('happinessBar').style.width = data.happiness + '%';
+            document.getElementById('healthBar').style.width = data.health + '%';
+            document.getElementById('satietyBar').style.width = data.satiety + '%';
+            
+            document.getElementById('happinessBar').textContent = data.happiness + '%';
+            document.getElementById('healthBar').textContent = data.health + '%';
+            document.getElementById('satietyBar').textContent = data.satiety + '%';
+        });
+}
+
+// 주기적으로 상태 업데이트
+setInterval(updateStatus, 5000);
+updateStatus();  // 초기 상태 로드
+
+// 음성 대화 관련 코드
+let voiceAssistant = null;
+
+document.getElementById('startVoiceBtn').addEventListener('click', function() {
+    if (!voiceAssistant) {
+        voiceAssistant = new VoiceAssistantGUI();
+        this.textContent = '음성 대화 종료';
+    } else {
+        voiceAssistant.stop_conversation();
+        voiceAssistant = null;
+        this.textContent = '음성 대화 시작';
+    }
+});
+
+// 채팅 기록 업데이트 함수 수정
+function updateChatHistory() {
+    fetch('/get_chat_history')
+        .then(response => response.json())
+        .then(data => {
+            const container = document.getElementById('chatContainer');
+            container.innerHTML = data.map(chat => `
+                <div class="message user-message">
+                    <strong>나:</strong> ${chat.user_message}
+                </div>
+                <div class="message ai-message">
+                    <strong>AI:</strong> ${chat.ai_response}
+                </div>
+            `).join('');
+            container.scrollTop = container.scrollHeight;
+        })
+        .catch(error => console.error('채팅 기록 업데이트 실패:', error));
+}
+
+// 주기적으로 채팅 기록 업데이트 (5초마다)
+setInterval(updateChatHistory, 5000);
+
+// 페이지 로드 시 초기 채팅 기록 로드
+document.addEventListener('DOMContentLoaded', function() {
+    updateChatHistory();
+});
+
+// 카메라 토글 기능
+document.addEventListener('DOMContentLoaded', function() {
+    const toggleButton = document.getElementById('toggleCamera');
+    const videoContainer = document.getElementById('videoContainer');
+    let streamUrl = "{{ url_for('video.video_feed') }}";
+    
+    if (toggleButton && videoContainer) {
+        toggleButton.addEventListener('click', async function() {
+            if (videoContainer.style.display === 'none') {
+                try {
+                    // 카메라 시작
+                    const response = await fetch('/camera/start', {
+                        method: 'POST'
+                    });
+                    const data = await response.json();
+                    
+                    if (data.status === 'success') {
+                        // 새로운 이미지 요소 생성
+                        const oldStream = document.querySelector('.video-stream');
+                        const newStream = document.createElement('img');
+                        newStream.className = 'video-stream';
+                        newStream.src = streamUrl + '?t=' + new Date().getTime(); // 캐시 방지를 위한 타임스탬프 추가
+                        
+                        // 기존 이미지 교체
+                        if (oldStream) {
+                            oldStream.parentNode.replaceChild(newStream, oldStream);
+                        }
+                        
+                        videoContainer.style.display = 'block';
+                        toggleButton.textContent = '카메라 끄기';
+                    } else {
+                        console.error('카메라 시작 실패:', data.message);
+                    }
+                } catch (error) {
+                    console.error('카메라 제어 중 오류 발생:', error);
+                }
+            } else {
+                try {
+                    // 카메라 정지
+                    const response = await fetch('/camera/stop', {
+                        method: 'POST'
+                    });
+                    const data = await response.json();
+                    
+                    if (data.status === 'success') {
+                        const videoStream = document.querySelector('.video-stream');
+                        if (videoStream) {
+                            videoStream.src = '';
+                        }
+                        videoContainer.style.display = 'none';
+                        toggleButton.textContent = '카메라 켜기';
+                    } else {
+                        console.error('카메라 정지 실패:', data.message);
+                    }
+                } catch (error) {
+                    console.error('카메라 제어 중 오류 발생:', error);
+                }
+            }
+        });
+    }
+});
+
+// 카메라 버튼 상태에 따른 클래스 변경을 위한 스크립트 추가
+if (videoContainer.style.display === 'none') {
+    // ... 기존 코드 ...
+    toggleButton.classList.remove('btn-danger');
+    toggleButton.classList.add('btn-primary');
+} else {
+    // ... 기존 코드 ...
+    toggleButton.classList.remove('btn-primary');
+    toggleButton.classList.add('btn-danger');
+}
+
+// 채팅 폼 제출 처리
+document.getElementById('chatForm').addEventListener('submit', async function(e) {
+    e.preventDefault();
+    
+    const messageInput = document.getElementById('messageInput');
+    const message = messageInput.value.trim();
+    const chatContainer = document.getElementById('chatContainer');
+    
+    if (message) {
+        // 사용자 메시지 즉시 표시
+        const userMessageHtml = `
+            <div class="message user-message">
+                <strong>나:</strong> ${message}
+            </div>
+        `;
+        chatContainer.insertAdjacentHTML('beforeend', userMessageHtml);
+        
+        // 스크롤을 아래로 이동
+        chatContainer.scrollTop = chatContainer.scrollHeight;
+        
+        // 입력창 비우기
+        messageInput.value = '';
+        
+        try {
+            // 서버로 메시지 전송
+            const response = await fetch('/chat', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({ message: message })
+            });
+            
+            const data = await response.json();
+            
+            if (response.ok && data.status === 'success') {
+                // AI 응답 표시
+                const aiMessageHtml = `
+                    <div class="message ai-message">
+                        <strong>AI:</strong> ${data.response}
+                    </div>
+                `;
+                chatContainer.insertAdjacentHTML('beforeend', aiMessageHtml);
+                
+                // 스크롤을 아래로 이동
+                chatContainer.scrollTop = chatContainer.scrollHeight;
+            } else {
+                console.error('메시지 전송 실패:', data.message);
+                // 에러 메시지 표시
+                const errorMessageHtml = `
+                    <div class="message system-message">
+                        <strong>시스템:</strong> 메시지 전송에 실패했습니다.
+                    </div>
+                `;
+                chatContainer.insertAdjacentHTML('beforeend', errorMessageHtml);
+            }
+        } catch (error) {
+            console.error('Error:', error);
+            // 에러 메시지 표시
+            const errorMessageHtml = `
+                <div class="message system-message">
+                    <strong>시스템:</strong> 오류가 발생했습니다.
+                </div>
+            `;
+            chatContainer.insertAdjacentHTML('beforeend', errorMessageHtml);
+        }
+    }
+});
+</script>
+{% endblock %}
